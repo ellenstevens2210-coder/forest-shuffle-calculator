@@ -165,6 +165,22 @@ async function resizedPhoto(url){
  const context=canvas.getContext('2d');context.drawImage(image,0,0,canvas.width,canvas.height);
  return canvas;
 }
+// Versie 3.3: extra uitsneden voor namen op overlappende kaarten.
+function scanRegions(canvas){
+ const w=canvas.width,h=canvas.height;
+ const regions=[{label:'hele foto',canvas}];
+ const specs=[
+  {label:'linkerkant',x:0,y:0,w:Math.round(w*.56),h},
+  {label:'rechterkant',x:Math.round(w*.44),y:0,w:Math.round(w*.56),h},
+  {label:'onderkant',x:0,y:Math.round(h*.45),w,h:Math.round(h*.55)}
+ ];
+ for(const r of specs){
+  const crop=document.createElement('canvas');crop.width=r.w;crop.height=r.h;
+  crop.getContext('2d').drawImage(canvas,r.x,r.y,r.w,r.h,0,0,r.w,r.h);
+  regions.push({label:r.label,canvas:crop});
+ }
+ return regions;
+}
 function renderScanResults(){const root=$('scan-results');root.replaceChildren();if(!scanCandidates.length){const p=document.createElement('p');p.textContent='Geen betrouwbare kaartnamen gevonden. Probeer een scherpere foto van dichtbij, of voer kaarten handmatig in via de categorieën.';root.append(p);return}const h=document.createElement('h3');h.textContent='Controleer de herkende kaarten';root.append(h);const info=document.createElement('p');info.className='hint';info.textContent='Dit zijn suggesties uit alle foto’s samen. Dubbelen zijn niet automatisch te onderscheiden. Pas aantallen aan en voeg alleen de juiste kaarten toe.';root.append(info);for(const c of scanCandidates){const wrap=document.createElement('div');wrap.className='card-row';const label=document.createElement('label');const check=document.createElement('input');check.type='checkbox';check.checked=c.selected;check.onchange=()=>c.selected=check.checked;label.append(check,document.createTextNode(' '+c.name));const quantity=document.createElement('input');quantity.type='number';quantity.min='1';quantity.max='99';quantity.value=c.count;quantity.className='scan-quantity';quantity.setAttribute('aria-label','Aantal '+c.name);quantity.onchange=()=>c.count=Math.max(1,Math.min(99,Number.parseInt(quantity.value,10)||1));wrap.append(label,quantity);root.append(wrap)}const add=document.createElement('button');add.className='primary';add.textContent='✅ Geselecteerde kaarten toevoegen aan mijn bos';add.onclick=()=>{const chosen=scanCandidates.filter(c=>c.selected);if(!chosen.length){$('scan-status').textContent='Vink eerst minstens één kaart aan.';return}for(const c of chosen){const card=uniekeKaarten.find(x=>x.naam===c.name);if(!card)continue;const next=Math.min(card.max??Infinity,aantallen[c.name]+c.count);aantallen[c.name]=next;if(kaartTellers[c.name]){while(kaartTellers[c.name].length<next)kaartTellers[c.name].push(0)}}refresh();scanCandidates=[];root.replaceChildren();$('scan-status').textContent=chosen.length+' kaartsoort(en) toegevoegd. Controleer voor de eindscore ook de extra vragen bij kaarten en boomcombinaties.';show('home')};root.append(add)}
 function loadOcr(){return new Promise((resolve,reject)=>{if(window.Tesseract){resolve(window.Tesseract);return}const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';script.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(new Error('OCR-module ontbreekt'));script.onerror=()=>reject(new Error('OCR-module kon niet worden geladen. Controleer je internetverbinding.'));document.head.append(script)})}
 // Versie 3.2: meet de fasen afzonderlijk; stop een langdurige OCR-test na een limiet.
@@ -173,7 +189,7 @@ const timings=$('scan-timings');
 function addTiming(line){timings.textContent+=(timings.textContent?'\n':'')+line}
 function elapsed(t){return ((performance.now()-t)/1000).toFixed(1)+' s'}
 $('copy-diagnostics').onclick=async()=>{
- const report='Forest Shuffle 3.2 | '+navigator.userAgent+'\n'+timings.textContent;
+ const report='Forest Shuffle 3.3 | '+navigator.userAgent+'\n'+timings.textContent;
  try{await navigator.clipboard.writeText(report);$('scan-status').textContent='Meetresultaten gekopieerd! Plak ze in de chat.'}
  catch(_){$('scan-status').textContent='Kopiëren niet toegestaan. Maak een screenshot van de snelheidsmeting.'}
 };
@@ -202,13 +218,20 @@ $('recognize-button').onclick=async()=>{
    const canvas=await resizedPhoto(photos[i].url);
    addTiming(`Foto ${i+1}: voorbereiden ${elapsed(t)} (${canvas.width}×${canvas.height} px)`);
    if(state.cancelled)break;
-   t=performance.now();$('scan-status').textContent=`Foto ${i+1} van ${limit}: tekst lezen (maximaal 60 seconden)…`;
-   const recognition=state.worker.recognize(canvas);
-   recognition.catch(()=>{});
-   const result=await Promise.race([recognition,new Promise((_,reject)=>setTimeout(()=>reject(new Error('Tekstherkenning duurde langer dan 60 seconden bij foto '+(i+1))),60000))]);
-   addTiming(`Foto ${i+1}: tekstherkenning ${elapsed(t)}`);
-   if(state.cancelled)break;
-   for(const name of findScanMatches(result.data.text))names.add(name);
+   const regions=scanRegions(canvas);
+   for(let j=0;j<regions.length;j++){
+    if(state.cancelled)break;
+    const region=regions[j];
+    t=performance.now();
+    $('scan-status').textContent=`Foto ${i+1}/${limit}: ${region.label} lezen (${j+1}/${regions.length})…`;
+    const recognition=state.worker.recognize(region.canvas);
+    recognition.catch(()=>{});
+    const result=await Promise.race([recognition,new Promise((_,reject)=>setTimeout(()=>reject(new Error('Tekstherkenning duurde langer dan 60 seconden bij '+region.label)),60000))]);
+    addTiming(`Foto ${i+1}, ${region.label}: ${elapsed(t)}`);
+    for(const name of findScanMatches(result.data.text))names.add(name);
+    // Keep the UI responsive and show progressive findings.
+    await new Promise(resolve=>setTimeout(resolve,0));
+   }
    addTiming(`Foto ${i+1}: ${names.size} kaartsoort(en) gevonden (totaal)`);
   }
   if(!state.cancelled){scanCandidates=[...names].sort((a,b)=>a.localeCompare(b,'nl')).map(name=>({name,count:1,selected:true}));renderScanResults();$('scan-status').textContent=scanCandidates.length+' mogelijke kaartsoort(en) gevonden. Controleer alles zorgvuldig.'}
