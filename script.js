@@ -143,16 +143,35 @@ $('scan-input').onchange=e=>{for(const file of e.target.files){if(file.type.star
 // Versie 3.0: experimentele OCR, lokaal in de browser. Geen automatische wijzigingen in de kaarttellers.
 function normalizedName(value){return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[’‘]/g,"'").replace(/[^a-z0-9]/g,'')}
 function editDistance(a,b){let prev=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let curr=[i];for(let j=1;j<=b.length;j++)curr[j]=Math.min(curr[j-1]+1,prev[j]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));prev=curr}return prev[b.length]}
+// Versie 3.5: herken exacte kaartnamen als losse woorden, ook bij OCR-regelafbrekingen.
+// Geen fuzzy gokjes: daarmee voorkom je verzonnen kaartnamen.
 function findScanMatches(text){
- const lines=text.split(/\n/).map(s=>s.trim()).filter(Boolean), found=new Set();
- for(const line of lines){const clean=normalizedName(line);if(clean.length<5)continue;
-  for(const card of uniekeKaarten){const name=normalizedName(card.naam);if(name.length<5)continue;
-   // Only complete names, not arbitrary substrings or short fuzzy guesses.
-   const words=line.split(/\s+/), count=card.naam.split(/\s+/).length;
-   for(let i=0;i<=words.length-count;i++){
-    const segment=normalizedName(words.slice(i,i+count).join(' '));
-    if(segment===name || (name.length>=11 && Math.abs(segment.length-name.length)<=1 && editDistance(segment,name)<=1))found.add(card.naam);
+ const lines=text.split(/\n/).map(line=>line.trim()).filter(Boolean);
+ const tokens=lines.map(line=>(line.match(/[\p{L}\p{N}]+/gu)||[]).map(normalizedName).filter(Boolean));
+ const found=new Set();
+ for(const card of uniekeKaarten){
+  const parts=(card.naam.match(/[\p{L}\p{N}]+/gu)||[]).map(normalizedName);
+  if(!parts.length)continue;
+  // Zoek exacte opeenvolgende woorden op dezelfde OCR-regel.
+  for(const row of tokens){
+   for(let i=0;i<=row.length-parts.length;i++){
+    if(parts.every((part,j)=>row[i+j]===part)){found.add(card.naam);break}
    }
+   if(found.has(card.naam))break;
+  }
+  if(found.has(card.naam)||parts.length<2)continue;
+  // OCR zet kaartnamen vaak op twee regels, met beeldruis na de naam.
+  // Alleen laatste woorden van de eerste regel + eerste woorden van de volgende regel.
+  for(let r=0;r<tokens.length-1;r++){
+   const first=tokens[r],second=tokens[r+1];
+   for(let cut=1;cut<parts.length;cut++){
+    const left=parts.slice(0,cut),right=parts.slice(cut);
+    // Naam mag vroeg op de eerste regel staan, gevolgd door maximaal 4 ruiswoorden.
+    const leftIndex=first.findIndex((w,i)=>first.slice(i,i+left.length).every((v,j)=>v===left[j])&&i+left.length<=first.length);
+    if(leftIndex<0||first.length-(leftIndex+left.length)>4)continue;
+    if(second.slice(0,right.length).every((v,j)=>v===right[j])&&second.length>=right.length){found.add(card.naam);break}
+   }
+   if(found.has(card.naam))break;
   }
  }
  return [...found];
@@ -188,11 +207,11 @@ let activeScan=null;
 const timings=$('scan-timings');
 const rawOcr=$('ocr-raw-text');
 function addOcrText(label, text){rawOcr.textContent+=(rawOcr.textContent?'\n\n':'')+'--- '+label+' ---\n'+(text.trim()||'[geen leesbare tekst]');}
-$('copy-ocr-text').onclick=async()=>{try{await navigator.clipboard.writeText('Forest Shuffle 3.4 OCR-tekst\n'+rawOcr.textContent);$('scan-status').textContent='Gelezen tekst gekopieerd! Plak hem hier in de chat.'}catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van het vak met gelezen tekst.'}};
+$('copy-ocr-text').onclick=async()=>{try{await navigator.clipboard.writeText('Forest Shuffle 3.5 OCR-tekst\n'+rawOcr.textContent);$('scan-status').textContent='Gelezen tekst gekopieerd! Plak hem hier in de chat.'}catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van het vak met gelezen tekst.'}};
 function addTiming(line){timings.textContent+=(timings.textContent?'\n':'')+line}
 function elapsed(t){return ((performance.now()-t)/1000).toFixed(1)+' s'}
 $('copy-diagnostics').onclick=async()=>{
- const report='Forest Shuffle 3.4 | '+navigator.userAgent+'\n'+timings.textContent;
+ const report='Forest Shuffle 3.5 | '+navigator.userAgent+'\n'+timings.textContent;
  try{await navigator.clipboard.writeText(report);$('scan-status').textContent='Meetresultaten gekopieerd! Plak ze in de chat.'}
  catch(_){$('scan-status').textContent='Kopiëren niet toegestaan. Maak een screenshot van de snelheidsmeting.'}
 };
