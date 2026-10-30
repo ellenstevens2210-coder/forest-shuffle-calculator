@@ -138,6 +138,7 @@ function renderCave(){show('cave-page');$('cave-counter').replaceChildren(teller
 restore();for(const cat of Object.keys(kaartenPerCategorie)){const b=document.createElement('button');b.textContent=cat;b.onclick=()=>renderCategory(cat);$('category-overview').append(b)}
 for(const b of document.querySelectorAll('.back'))b.onclick=()=>show('home');$('cave-button').onclick=renderCave;$('cave-type').onchange=e=>{grotType=e.target.value;refresh()};$('reset-button').onclick=()=>{if(!confirm('Alle kaarttellers, extra vragen en grotgegevens wissen?'))return;for(const n in aantallen)aantallen[n]=0;Object.assign(extraWaarden,standaardExtras);for(const n in kaartTellers)kaartTellers[n]=[];grotType='Grot';grotAantalKaarten=0;show('home')};$('scan-button').onclick=()=>show('scan-page');
 const photos=[];let scanCandidates=[];function renderPhotos(){const g=$('scan-gallery');g.replaceChildren();for(const p of photos){const d=document.createElement('div');d.className='photo';const img=document.createElement('img');img.src=p.url;img.alt=p.name;const b=document.createElement('button');b.textContent='Verwijderen';b.onclick=()=>{URL.revokeObjectURL(p.url);photos.splice(photos.indexOf(p),1);scanCandidates=[];$('scan-results').replaceChildren();renderPhotos()};d.append(img,b);g.append(d)}}
+$('camera-input').onchange=e=>{for(const file of e.target.files){if(file.type.startsWith('image/'))photos.push({name:file.name||'Boomfoto',url:URL.createObjectURL(file)})}e.target.value='';scanCandidates=[];$('scan-results').replaceChildren();$('scan-status').textContent=photos.length+' boomfoto(’s) toegevoegd. Maak nog een foto of tik op Herken mijn kaarten.';renderPhotos()};
 $('scan-input').onchange=e=>{for(const file of e.target.files){if(file.type.startsWith('image/'))photos.push({name:file.name,url:URL.createObjectURL(file)})}e.target.value='';scanCandidates=[];$('scan-results').replaceChildren();$('scan-status').textContent=photos.length+' foto(’s) toegevoegd. Tik op Herkennen om te beginnen.';renderPhotos()};$('clear-photos').onclick=()=>{for(const p of photos)URL.revokeObjectURL(p.url);photos.length=0;scanCandidates=[];$('scan-results').replaceChildren();$('scan-status').textContent='Foto’s gewist.';renderPhotos()};
 
 // Versie 3.0: experimentele OCR, lokaal in de browser. Geen automatische wijzigingen in de kaarttellers.
@@ -258,16 +259,16 @@ function diagnoseSavi(text, photoIndex, regionLabel, matches){
  saviDiagnostics.textContent+=(saviDiagnostics.textContent?'\n\n':'')+lines.join('\n');
 }
 $('copy-savi-diagnostics').onclick=async()=>{
- try{await navigator.clipboard.writeText('Forest Shuffle 4.2 — Savi-diagnose\n'+saviDiagnostics.textContent);$('scan-status').textContent='Savi-diagnose gekopieerd! Plak hem hier in de chat.'}
+ try{await navigator.clipboard.writeText('Forest Shuffle 4.3 — Savi-diagnose\n'+saviDiagnostics.textContent);$('scan-status').textContent='Savi-diagnose gekopieerd! Plak hem hier in de chat.'}
  catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van de Savi-diagnose.'}
 };
 
 function addOcrText(label, text){rawOcr.textContent+=(rawOcr.textContent?'\n\n':'')+'--- '+label+' ---\n'+(text.trim()||'[geen leesbare tekst]');}
-$('copy-ocr-text').onclick=async()=>{try{await navigator.clipboard.writeText('Forest Shuffle 4.2 OCR-tekst\n'+rawOcr.textContent);$('scan-status').textContent='Gelezen tekst gekopieerd! Plak hem hier in de chat.'}catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van het vak met gelezen tekst.'}};
+$('copy-ocr-text').onclick=async()=>{try{await navigator.clipboard.writeText('Forest Shuffle 4.3 OCR-tekst\n'+rawOcr.textContent);$('scan-status').textContent='Gelezen tekst gekopieerd! Plak hem hier in de chat.'}catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van het vak met gelezen tekst.'}};
 function addTiming(line){timings.textContent+=(timings.textContent?'\n':'')+line}
 function elapsed(t){return ((performance.now()-t)/1000).toFixed(1)+' s'}
 $('copy-diagnostics').onclick=async()=>{
- const report='Forest Shuffle 4.2 | '+navigator.userAgent+'\n'+timings.textContent;
+ const report='Forest Shuffle 4.3 | '+navigator.userAgent+'\n'+timings.textContent;
  try{await navigator.clipboard.writeText(report);$('scan-status').textContent='Meetresultaten gekopieerd! Plak ze in de chat.'}
  catch(_){$('scan-status').textContent='Kopiëren niet toegestaan. Maak een screenshot van de snelheidsmeting.'}
 };
