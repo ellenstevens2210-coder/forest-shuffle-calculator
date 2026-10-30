@@ -137,8 +137,43 @@ function renderCategory(category){show('category-page');$('category-title').text
 function renderCave(){show('cave-page');$('cave-counter').replaceChildren(teller(()=>grotAantalKaarten,delta=>{grotAantalKaarten=Math.max(0,grotAantalKaarten+delta);renderCave()}))}
 restore();for(const cat of Object.keys(kaartenPerCategorie)){const b=document.createElement('button');b.textContent=cat;b.onclick=()=>renderCategory(cat);$('category-overview').append(b)}
 for(const b of document.querySelectorAll('.back'))b.onclick=()=>show('home');$('cave-button').onclick=renderCave;$('cave-type').onchange=e=>{grotType=e.target.value;refresh()};$('reset-button').onclick=()=>{if(!confirm('Alle kaarttellers, extra vragen en grotgegevens wissen?'))return;for(const n in aantallen)aantallen[n]=0;Object.assign(extraWaarden,standaardExtras);for(const n in kaartTellers)kaartTellers[n]=[];grotType='Grot';grotAantalKaarten=0;show('home')};$('scan-button').onclick=()=>show('scan-page');
-const photos=[];let scanCandidates=[];function renderPhotos(){const g=$('scan-gallery');g.replaceChildren();for(const p of photos){const d=document.createElement('div');d.className='photo';const img=document.createElement('img');img.src=p.url;img.alt=p.name;const b=document.createElement('button');b.textContent='Verwijderen';b.onclick=()=>{URL.revokeObjectURL(p.url);photos.splice(photos.indexOf(p),1);scanCandidates=[];$('scan-results').replaceChildren();renderPhotos()};d.append(img,b);g.append(d)}}
-$('scan-input').onchange=e=>{for(const file of e.target.files){if(file.type.startsWith('image/'))photos.push({name:file.name,url:URL.createObjectURL(file)})}e.target.value='';scanCandidates=[];$('scan-results').replaceChildren();$('scan-status').textContent=photos.length+' foto(’s) toegevoegd. Tik op Herkennen om te beginnen.';renderPhotos()};$('clear-photos').onclick=()=>{for(const p of photos)URL.revokeObjectURL(p.url);photos.length=0;scanCandidates=[];$('scan-results').replaceChildren();$('scan-status').textContent='Foto’s gewist.';renderPhotos()};
+const photos=[];let scanCandidates=[];function renderPhotos(){const g=$('scan-gallery');g.replaceChildren();for(const p of photos){const d=document.createElement('div');d.className='photo';const img=document.createElement('img');img.src=p.url;img.alt=p.name;const b=document.createElement('button');b.textContent='Verwijderen';b.onclick=()=>{URL.revokeObjectURL(p.url);photos.splice(photos.indexOf(p),1);scanCandidates=[];$('scan-results').replaceChildren();renderPhotos();updateGroupPreview()};d.append(img,b);g.append(d)}}
+// Versie 4.1: handmatig gemarkeerde boomgroepen op EEN overzichtsfoto.
+// Bewaar genormaliseerde vakken: werkt ook op verschillende schermgroottes.
+let groupBoxes=[],groupRotation=0,groupPreview=null,groupDrag=null;
+const groupCanvas=$('group-image');
+function drawGroupEditor(){
+ const wrap=$('group-editor');wrap.hidden=!$('scan-group-mode').checked;
+ const info=$('group-count');info.textContent=groupBoxes.length+' boomgroep(en) geselecteerd. '+(photos.length>1?'Alleen de eerste foto wordt in deze modus gebruikt.':'');
+ if(!groupPreview)return;
+ const w=groupPreview.width,h=groupPreview.height;
+ groupCanvas.width=w;groupCanvas.height=h;
+ const ctx=groupCanvas.getContext('2d');ctx.drawImage(groupPreview,0,0);
+ const boxes=groupDrag?[...groupBoxes,groupDrag]:groupBoxes;
+ boxes.forEach((b,i)=>{const x=b.x*w,y=b.y*h,bw=b.w*w,bh=b.h*h;ctx.strokeStyle='#ffcf42';ctx.lineWidth=Math.max(3,w/180);ctx.strokeRect(x,y,bw,bh);ctx.fillStyle='rgba(24,70,35,.82)';ctx.fillRect(x,y,Math.min(145,bw),Math.min(50,bh));ctx.fillStyle='#ffffff';ctx.font=`bold ${Math.max(17,Math.round(w/34))}px sans-serif`;ctx.fillText(String(i+1),x+8,y+Math.max(20,Math.round(w/30)));});
+}
+async function updateGroupPreview(){
+ groupPreview=null;groupBoxes=[];groupDrag=null;
+ if(photos.length){try{const original=await resizedPhoto(photos[0].url);groupPreview=rotateCanvas(original,groupRotation)}catch(e){$('group-instructions').textContent='Foto laden mislukt: '+e.message}}
+ drawGroupEditor();
+}
+function rotateCanvas(source,angle){
+ const quarter=(angle/90)%4;if(!quarter)return source;
+ const canvas=document.createElement('canvas');canvas.width=quarter%2?source.height:source.width;canvas.height=quarter%2?source.width:source.height;
+ const ctx=canvas.getContext('2d');ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(quarter*Math.PI/2);ctx.drawImage(source,-source.width/2,-source.height/2);return canvas;
+}
+$('scan-group-mode').onchange=()=>{drawGroupEditor();if($('scan-group-mode').checked&&!groupPreview)updateGroupPreview()};
+$('group-undo').onclick=()=>{groupBoxes.pop();drawGroupEditor()};
+$('group-clear').onclick=()=>{groupBoxes=[];drawGroupEditor()};
+$('group-rotate').onclick=()=>{groupRotation=(groupRotation+90)%360;updateGroupPreview()};
+function groupPointer(e){const rect=groupCanvas.getBoundingClientRect();return{x:Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width)),y:Math.max(0,Math.min(1,(e.clientY-rect.top)/rect.height))}}
+let groupStart=null;
+groupCanvas.addEventListener('pointerdown',e=>{if(!groupPreview)return;e.preventDefault();groupCanvas.setPointerCapture(e.pointerId);groupStart=groupPointer(e)});
+groupCanvas.addEventListener('pointermove',e=>{if(!groupStart)return;e.preventDefault();const p=groupPointer(e);groupDrag={x:Math.min(p.x,groupStart.x),y:Math.min(p.y,groupStart.y),w:Math.abs(p.x-groupStart.x),h:Math.abs(p.y-groupStart.y)};drawGroupEditor()});
+groupCanvas.addEventListener('pointerup',e=>{if(!groupStart)return;const p=groupPointer(e);const b={x:Math.min(p.x,groupStart.x),y:Math.min(p.y,groupStart.y),w:Math.abs(p.x-groupStart.x),h:Math.abs(p.y-groupStart.y)};if(b.w>.035&&b.h>.035)groupBoxes.push(b);groupStart=null;groupDrag=null;drawGroupEditor()});
+groupCanvas.addEventListener('pointercancel',()=>{groupStart=null;groupDrag=null;drawGroupEditor()});
+function cropGroup(canvas,b){const x=Math.round(b.x*canvas.width),y=Math.round(b.y*canvas.height),w=Math.max(1,Math.min(canvas.width-x,Math.round(b.w*canvas.width))),h=Math.max(1,Math.min(canvas.height-y,Math.round(b.h*canvas.height)));const crop=document.createElement('canvas');crop.width=w;crop.height=h;crop.getContext('2d').drawImage(canvas,x,y,w,h,0,0,w,h);return crop}
+$('scan-input').onchange=e=>{for(const file of e.target.files){if(file.type.startsWith('image/'))photos.push({name:file.name,url:URL.createObjectURL(file)})}e.target.value='';scanCandidates=[];$('scan-results').replaceChildren();$('scan-status').textContent=photos.length+' foto(’s) toegevoegd. Tik op Herkennen om te beginnen.';renderPhotos();updateGroupPreview()};$('clear-photos').onclick=()=>{for(const p of photos)URL.revokeObjectURL(p.url);photos.length=0;scanCandidates=[];$('scan-results').replaceChildren();$('scan-status').textContent='Foto’s gewist.';renderPhotos();updateGroupPreview()};
 
 // Versie 3.0: experimentele OCR, lokaal in de browser. Geen automatische wijzigingen in de kaarttellers.
 function normalizedName(value){return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[’‘]/g,"'").replace(/[^a-z0-9]/g,'')}
@@ -258,16 +293,16 @@ function diagnoseSavi(text, photoIndex, regionLabel, matches){
  saviDiagnostics.textContent+=(saviDiagnostics.textContent?'\n\n':'')+lines.join('\n');
 }
 $('copy-savi-diagnostics').onclick=async()=>{
- try{await navigator.clipboard.writeText('Forest Shuffle 4.0 — Savi-diagnose\n'+saviDiagnostics.textContent);$('scan-status').textContent='Savi-diagnose gekopieerd! Plak hem hier in de chat.'}
+ try{await navigator.clipboard.writeText('Forest Shuffle 4.1 — Savi-diagnose\n'+saviDiagnostics.textContent);$('scan-status').textContent='Savi-diagnose gekopieerd! Plak hem hier in de chat.'}
  catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van de Savi-diagnose.'}
 };
 
 function addOcrText(label, text){rawOcr.textContent+=(rawOcr.textContent?'\n\n':'')+'--- '+label+' ---\n'+(text.trim()||'[geen leesbare tekst]');}
-$('copy-ocr-text').onclick=async()=>{try{await navigator.clipboard.writeText('Forest Shuffle 4.0 OCR-tekst\n'+rawOcr.textContent);$('scan-status').textContent='Gelezen tekst gekopieerd! Plak hem hier in de chat.'}catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van het vak met gelezen tekst.'}};
+$('copy-ocr-text').onclick=async()=>{try{await navigator.clipboard.writeText('Forest Shuffle 4.1 OCR-tekst\n'+rawOcr.textContent);$('scan-status').textContent='Gelezen tekst gekopieerd! Plak hem hier in de chat.'}catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van het vak met gelezen tekst.'}};
 function addTiming(line){timings.textContent+=(timings.textContent?'\n':'')+line}
 function elapsed(t){return ((performance.now()-t)/1000).toFixed(1)+' s'}
 $('copy-diagnostics').onclick=async()=>{
- const report='Forest Shuffle 4.0 | '+navigator.userAgent+'\n'+timings.textContent;
+ const report='Forest Shuffle 4.1 | '+navigator.userAgent+'\n'+timings.textContent;
  try{await navigator.clipboard.writeText(report);$('scan-status').textContent='Meetresultaten gekopieerd! Plak ze in de chat.'}
  catch(_){$('scan-status').textContent='Kopiëren niet toegestaan. Maak een screenshot van de snelheidsmeting.'}
 };
@@ -278,7 +313,9 @@ $('recognize-button').onclick=async()=>{
  const btn=$('recognize-button'),stop=$('stop-recognition');btn.disabled=true;stop.hidden=false;
  scanCandidates=[];$('scan-results').replaceChildren();timings.textContent='';rawOcr.textContent='';saviDiagnostics.textContent='';
  const overall=performance.now();const names=new Set();
- const limit=$('scan-one-only').checked?1:photos.length;
+ const groupMode=$('scan-group-mode').checked;
+ if(groupMode&&!groupBoxes.length){$('scan-status').textContent='Teken eerst minstens één vak om een boomgroep.';btn.disabled=false;stop.hidden=true;activeScan=null;return}
+ const limit=groupMode?1:($('scan-one-only').checked?1:photos.length);
  try{
   let t=performance.now();$('scan-status').textContent='OCR-bibliotheek laden…';
   const ocr=await loadOcr();addTiming('Bibliotheek laden: '+elapsed(t));
@@ -293,13 +330,13 @@ $('recognize-button').onclick=async()=>{
   for(let i=0;i<limit;i++){
    if(state.cancelled)break;
    t=performance.now();$('scan-status').textContent=`Foto ${i+1} van ${limit}: voorbereiden…`;
-   const canvas=await resizedPhoto(photos[i].url);
+   const canvas=groupMode?rotateCanvas(await resizedPhoto(photos[i].url),groupRotation):await resizedPhoto(photos[i].url);
    addTiming(`Foto ${i+1}: voorbereiden ${elapsed(t)} (${canvas.width}×${canvas.height} px)`);
    if(state.cancelled)break;
    const allRegions=scanRegions(canvas);
    const fastMode=$('scan-fast-mode').checked;
-   const regions=fastMode?allRegions.filter(region=>region.label!=='hele foto'):allRegions;
-   addTiming(`Foto ${i+1}: modus ${fastMode?'SNEL (3 uitsneden)':'VOLLEDIG (4 scans)'}`);
+   const regions=groupMode?groupBoxes.flatMap((b,k)=>{const tree=cropGroup(canvas,b);return scanRegions(tree).filter(r=>r.label!=='hele foto').map(r=>({label:`boomgroep ${k+1} / ${r.label}`,canvas:r.canvas}))}):(fastMode?allRegions.filter(region=>region.label!=='hele foto'):allRegions);
+   addTiming(`Foto ${i+1}: modus ${groupMode?'BOOMGROEPEN ('+groupBoxes.length+' groepen, '+regions.length+' uitsneden)':(fastMode?'SNEL (3 uitsneden)':'VOLLEDIG (4 scans)')}`);
    for(let j=0;j<regions.length;j++){
     if(state.cancelled)break;
     const region=regions[j];
