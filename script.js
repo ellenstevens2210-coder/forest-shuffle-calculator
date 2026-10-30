@@ -174,25 +174,27 @@ function findScanMatches(text){
    if(found.has(card.naam))break;
   }
  }
- // Versie 3.7: de kaartnaam is gedrukt als "Savi's dwerg-" / "vleermuis".
- // OCR voegt soms tekens na het afbreekstreepje toe ("B") en voor
- // "vleermuis" ("ON" of leestekens). Accepteer alleen een volledige,
- // specifieke naam over twee opeenvolgende regels, nooit alleen "vleermuis".
+ // Versie 3.9: OCR voegt soms een lege regel tussen "Savi's dwerg-" en
+ // "vleermuis" toe. Kijk maximaal 3 fysieke regels vooruit en sla alleen
+ // lege regels over. Houd de bestaande ruislimieten en specifieke naamcheck.
  const saviCard=uniekeKaarten.find(card=>normalizedName(card.naam)==='savisdwergvleermuis');
  if(saviCard){
   const saviLines=text.split(/\r?\n/);
   const secondPart=/\bvleermuis\b/iu;
   for(let i=0;i<saviLines.length-1;i++){
-   const first=saviLines[i],second=saviLines[i+1];
-   // Op de naamregel mag na 'dwerg-' alleen OCR-ruis staan.
+   const first=saviLines[i];
    const start=first.match(/\bsavi['’]?s\s+dwerg\s*[-‐‑–—]/iu);
    if(!start)continue;
    const suffix=first.slice(start.index+start[0].length);
-   const before=second.split(/\bvleermuis\b/iu)[0];
-   if(secondPart.test(second) && suffix.length<=24 && before.length<=18){
-    found.add(saviCard.naam);
-    break;
+   if(suffix.length>24)continue;
+   for(let j=i+1;j<Math.min(saviLines.length,i+4);j++){
+    const second=saviLines[j];
+    if(!second.trim())continue;
+    const before=second.split(/\bvleermuis\b/iu)[0];
+    if(secondPart.test(second)&&before.length<=18)found.add(saviCard.naam);
+    break; // Alleen de eerstvolgende niet-lege regel is toegestaan.
    }
+   if(found.has(saviCard.naam))break;
   }
  }
  return [...found];
@@ -235,8 +237,9 @@ function diagnoseSavi(text, photoIndex, regionLabel, matches){
  const evidence=[];
  for(let i=0;i<rows.length;i++){
   if(/savi|dwerg|vleermuis/iu.test(rows[i])){
-   const next=i+1<rows.length?rows[i+1]:'';
-   evidence.push({line:i+1,first:rows[i].trim(),next:next.trim()});
+   const nextIndex=rows.findIndex((row,j)=>j>i&&j<=i+3&&row.trim().length>0);
+   const next=nextIndex>=0?rows[nextIndex]:'';
+   evidence.push({line:i+1,first:rows[i].trim(),next:next.trim(),nextLine:nextIndex>=0?nextIndex+1:'geen'});
   }
  }
  const matched=!!db&&matches.includes(db.naam);
@@ -246,7 +249,7 @@ function diagnoseSavi(text, photoIndex, regionLabel, matches){
   `Aantal OCR-regels met Savi/dwerg/vleermuis: ${evidence.length}`];
  for(const item of evidence.slice(0,8)){
   lines.push(`Regel ${item.line}: ${item.first}`);
-  lines.push(`Volgende regel: ${item.next}`);
+  lines.push(`Volgende niet-lege regel (${item.nextLine}): ${item.next}`);
   const a=/\bsavi['’]?s\s+dwerg\s*[-‐‑–—]/iu.exec(item.first);
   const b=/\bvleermuis\b/iu.exec(item.next);
   lines.push(`Savi+dwerg- op deze regel: ${a?'JA':'NEE'}; vleermuis op volgende regel: ${b?'JA':'NEE'}`);
@@ -255,16 +258,16 @@ function diagnoseSavi(text, photoIndex, regionLabel, matches){
  saviDiagnostics.textContent+=(saviDiagnostics.textContent?'\n\n':'')+lines.join('\n');
 }
 $('copy-savi-diagnostics').onclick=async()=>{
- try{await navigator.clipboard.writeText('Forest Shuffle 3.8 — Savi-diagnose\n'+saviDiagnostics.textContent);$('scan-status').textContent='Savi-diagnose gekopieerd! Plak hem hier in de chat.'}
+ try{await navigator.clipboard.writeText('Forest Shuffle 3.9 — Savi-diagnose\n'+saviDiagnostics.textContent);$('scan-status').textContent='Savi-diagnose gekopieerd! Plak hem hier in de chat.'}
  catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van de Savi-diagnose.'}
 };
 
 function addOcrText(label, text){rawOcr.textContent+=(rawOcr.textContent?'\n\n':'')+'--- '+label+' ---\n'+(text.trim()||'[geen leesbare tekst]');}
-$('copy-ocr-text').onclick=async()=>{try{await navigator.clipboard.writeText('Forest Shuffle 3.8 OCR-tekst\n'+rawOcr.textContent);$('scan-status').textContent='Gelezen tekst gekopieerd! Plak hem hier in de chat.'}catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van het vak met gelezen tekst.'}};
+$('copy-ocr-text').onclick=async()=>{try{await navigator.clipboard.writeText('Forest Shuffle 3.9 OCR-tekst\n'+rawOcr.textContent);$('scan-status').textContent='Gelezen tekst gekopieerd! Plak hem hier in de chat.'}catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van het vak met gelezen tekst.'}};
 function addTiming(line){timings.textContent+=(timings.textContent?'\n':'')+line}
 function elapsed(t){return ((performance.now()-t)/1000).toFixed(1)+' s'}
 $('copy-diagnostics').onclick=async()=>{
- const report='Forest Shuffle 3.8 | '+navigator.userAgent+'\n'+timings.textContent;
+ const report='Forest Shuffle 3.9 | '+navigator.userAgent+'\n'+timings.textContent;
  try{await navigator.clipboard.writeText(report);$('scan-status').textContent='Meetresultaten gekopieerd! Plak ze in de chat.'}
  catch(_){$('scan-status').textContent='Kopiëren niet toegestaan. Maak een screenshot van de snelheidsmeting.'}
 };
