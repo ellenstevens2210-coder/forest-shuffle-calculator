@@ -227,12 +227,44 @@ function loadOcr(){return new Promise((resolve,reject)=>{if(window.Tesseract){re
 let activeScan=null;
 const timings=$('scan-timings');
 const rawOcr=$('ocr-raw-text');
+const saviDiagnostics=$('savi-diagnostics');
+const saviName="Savi's dwergvleermuis";
+function diagnoseSavi(text, photoIndex, regionLabel, matches){
+ const db=uniekeKaarten.find(card=>normalizedName(card.naam)===normalizedName(saviName));
+ const rows=text.split(/\r?\n/);
+ const evidence=[];
+ for(let i=0;i<rows.length;i++){
+  if(/savi|dwerg|vleermuis/iu.test(rows[i])){
+   const next=i+1<rows.length?rows[i+1]:'';
+   evidence.push({line:i+1,first:rows[i].trim(),next:next.trim()});
+  }
+ }
+ const matched=!!db&&matches.includes(db.naam);
+ const lines=[`Foto ${photoIndex} / ${regionLabel}`,
+  `Database: ${db?'JA — '+db.naam:'NEE — kaart ontbreekt'}`,
+  `Kaartnaam uit OCR herkend: ${matched?'JA':'NEE'}`,
+  `Aantal OCR-regels met Savi/dwerg/vleermuis: ${evidence.length}`];
+ for(const item of evidence.slice(0,8)){
+  lines.push(`Regel ${item.line}: ${item.first}`);
+  lines.push(`Volgende regel: ${item.next}`);
+  const a=/\bsavi['’]?s\s+dwerg\s*[-‐‑–—]/iu.exec(item.first);
+  const b=/\bvleermuis\b/iu.exec(item.next);
+  lines.push(`Savi+dwerg- op deze regel: ${a?'JA':'NEE'}; vleermuis op volgende regel: ${b?'JA':'NEE'}`);
+  if(a&&b)lines.push(`Ruis na dwerg-: ${item.first.slice(a.index+a[0].length).length} tekens; voor vleermuis: ${item.next.slice(0,b.index).length} tekens`);
+ }
+ saviDiagnostics.textContent+=(saviDiagnostics.textContent?'\n\n':'')+lines.join('\n');
+}
+$('copy-savi-diagnostics').onclick=async()=>{
+ try{await navigator.clipboard.writeText('Forest Shuffle 3.8 — Savi-diagnose\n'+saviDiagnostics.textContent);$('scan-status').textContent='Savi-diagnose gekopieerd! Plak hem hier in de chat.'}
+ catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van de Savi-diagnose.'}
+};
+
 function addOcrText(label, text){rawOcr.textContent+=(rawOcr.textContent?'\n\n':'')+'--- '+label+' ---\n'+(text.trim()||'[geen leesbare tekst]');}
-$('copy-ocr-text').onclick=async()=>{try{await navigator.clipboard.writeText('Forest Shuffle 3.7 OCR-tekst\n'+rawOcr.textContent);$('scan-status').textContent='Gelezen tekst gekopieerd! Plak hem hier in de chat.'}catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van het vak met gelezen tekst.'}};
+$('copy-ocr-text').onclick=async()=>{try{await navigator.clipboard.writeText('Forest Shuffle 3.8 OCR-tekst\n'+rawOcr.textContent);$('scan-status').textContent='Gelezen tekst gekopieerd! Plak hem hier in de chat.'}catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van het vak met gelezen tekst.'}};
 function addTiming(line){timings.textContent+=(timings.textContent?'\n':'')+line}
 function elapsed(t){return ((performance.now()-t)/1000).toFixed(1)+' s'}
 $('copy-diagnostics').onclick=async()=>{
- const report='Forest Shuffle 3.7 | '+navigator.userAgent+'\n'+timings.textContent;
+ const report='Forest Shuffle 3.8 | '+navigator.userAgent+'\n'+timings.textContent;
  try{await navigator.clipboard.writeText(report);$('scan-status').textContent='Meetresultaten gekopieerd! Plak ze in de chat.'}
  catch(_){$('scan-status').textContent='Kopiëren niet toegestaan. Maak een screenshot van de snelheidsmeting.'}
 };
@@ -241,7 +273,7 @@ $('recognize-button').onclick=async()=>{
  if(!photos.length){$('scan-status').textContent='Voeg eerst één of meer foto’s toe.';return}
  const state={cancelled:false,worker:null};activeScan=state;
  const btn=$('recognize-button'),stop=$('stop-recognition');btn.disabled=true;stop.hidden=false;
- scanCandidates=[];$('scan-results').replaceChildren();timings.textContent='';rawOcr.textContent='';
+ scanCandidates=[];$('scan-results').replaceChildren();timings.textContent='';rawOcr.textContent='';saviDiagnostics.textContent='';
  const overall=performance.now();const names=new Set();
  const limit=$('scan-one-only').checked?1:photos.length;
  try{
@@ -274,13 +306,14 @@ $('recognize-button').onclick=async()=>{
     addOcrText(`Foto ${i+1} / ${region.label}`,result.data.text||'');
     const matches=findScanMatches(result.data.text||'');
     addTiming(`Foto ${i+1}, ${region.label}: ${matches.length} passende kaartnamen`);
+    diagnoseSavi(result.data.text||'',i+1,region.label,matches);
     for(const name of matches)names.add(name);
     // Keep the UI responsive and show progressive findings.
     await new Promise(resolve=>setTimeout(resolve,0));
    }
    addTiming(`Foto ${i+1}: ${names.size} kaartsoort(en) gevonden (totaal)`);
   }
-  if(!state.cancelled){scanCandidates=[...names].sort((a,b)=>a.localeCompare(b,'nl')).map(name=>({name,count:1,selected:true}));renderScanResults();$('scan-status').textContent=scanCandidates.length+' mogelijke kaartsoort(en) gevonden. Controleer alles zorgvuldig.'}
+  if(!state.cancelled){scanCandidates=[...names].sort((a,b)=>a.localeCompare(b,'nl')).map(name=>({name,count:1,selected:true}));saviDiagnostics.textContent+='\n\nEINDCONTROLE: '+(scanCandidates.some(c=>normalizedName(c.name)===normalizedName(saviName))?'Savi staat in de resultaten.':'Savi staat NIET in de resultaten.');renderScanResults();$('scan-status').textContent=scanCandidates.length+' mogelijke kaartsoort(en) gevonden. Controleer alles zorgvuldig.'}
  }catch(err){addTiming('Melding: '+err.message);$('scan-status').textContent='Scan gestopt: '+err.message+'. Je kunt je kaarttellers nog steeds gebruiken.'}
  finally{addTiming('Totale testduur: '+elapsed(overall));if(state.worker)await state.worker.terminate().catch(()=>{});if(activeScan===state)activeScan=null;btn.disabled=false;stop.hidden=true}
 };
