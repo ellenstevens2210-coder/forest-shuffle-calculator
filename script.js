@@ -183,13 +183,16 @@ function scanRegions(canvas){
 }
 function renderScanResults(){const root=$('scan-results');root.replaceChildren();if(!scanCandidates.length){const p=document.createElement('p');p.textContent='Geen betrouwbare kaartnamen gevonden. Probeer een scherpere foto van dichtbij, of voer kaarten handmatig in via de categorieën.';root.append(p);return}const h=document.createElement('h3');h.textContent='Controleer de herkende kaarten';root.append(h);const info=document.createElement('p');info.className='hint';info.textContent='Dit zijn suggesties uit alle foto’s samen. Dubbelen zijn niet automatisch te onderscheiden. Pas aantallen aan en voeg alleen de juiste kaarten toe.';root.append(info);for(const c of scanCandidates){const wrap=document.createElement('div');wrap.className='card-row';const label=document.createElement('label');const check=document.createElement('input');check.type='checkbox';check.checked=c.selected;check.onchange=()=>c.selected=check.checked;label.append(check,document.createTextNode(' '+c.name));const quantity=document.createElement('input');quantity.type='number';quantity.min='1';quantity.max='99';quantity.value=c.count;quantity.className='scan-quantity';quantity.setAttribute('aria-label','Aantal '+c.name);quantity.onchange=()=>c.count=Math.max(1,Math.min(99,Number.parseInt(quantity.value,10)||1));wrap.append(label,quantity);root.append(wrap)}const add=document.createElement('button');add.className='primary';add.textContent='✅ Geselecteerde kaarten toevoegen aan mijn bos';add.onclick=()=>{const chosen=scanCandidates.filter(c=>c.selected);if(!chosen.length){$('scan-status').textContent='Vink eerst minstens één kaart aan.';return}for(const c of chosen){const card=uniekeKaarten.find(x=>x.naam===c.name);if(!card)continue;const next=Math.min(card.max??Infinity,aantallen[c.name]+c.count);aantallen[c.name]=next;if(kaartTellers[c.name]){while(kaartTellers[c.name].length<next)kaartTellers[c.name].push(0)}}refresh();scanCandidates=[];root.replaceChildren();$('scan-status').textContent=chosen.length+' kaartsoort(en) toegevoegd. Controleer voor de eindscore ook de extra vragen bij kaarten en boomcombinaties.';show('home')};root.append(add)}
 function loadOcr(){return new Promise((resolve,reject)=>{if(window.Tesseract){resolve(window.Tesseract);return}const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';script.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(new Error('OCR-module ontbreekt'));script.onerror=()=>reject(new Error('OCR-module kon niet worden geladen. Controleer je internetverbinding.'));document.head.append(script)})}
-// Versie 3.2: meet de fasen afzonderlijk; stop een langdurige OCR-test na een limiet.
+// Versie 3.4: toon OCR-tekst en meet de fasen afzonderlijk; stop een langdurige OCR-test na een limiet.
 let activeScan=null;
 const timings=$('scan-timings');
+const rawOcr=$('ocr-raw-text');
+function addOcrText(label, text){rawOcr.textContent+=(rawOcr.textContent?'\n\n':'')+'--- '+label+' ---\n'+(text.trim()||'[geen leesbare tekst]');}
+$('copy-ocr-text').onclick=async()=>{try{await navigator.clipboard.writeText('Forest Shuffle 3.4 OCR-tekst\n'+rawOcr.textContent);$('scan-status').textContent='Gelezen tekst gekopieerd! Plak hem hier in de chat.'}catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van het vak met gelezen tekst.'}};
 function addTiming(line){timings.textContent+=(timings.textContent?'\n':'')+line}
 function elapsed(t){return ((performance.now()-t)/1000).toFixed(1)+' s'}
 $('copy-diagnostics').onclick=async()=>{
- const report='Forest Shuffle 3.3.1 | '+navigator.userAgent+'\n'+timings.textContent;
+ const report='Forest Shuffle 3.4 | '+navigator.userAgent+'\n'+timings.textContent;
  try{await navigator.clipboard.writeText(report);$('scan-status').textContent='Meetresultaten gekopieerd! Plak ze in de chat.'}
  catch(_){$('scan-status').textContent='Kopiëren niet toegestaan. Maak een screenshot van de snelheidsmeting.'}
 };
@@ -198,7 +201,7 @@ $('recognize-button').onclick=async()=>{
  if(!photos.length){$('scan-status').textContent='Voeg eerst één of meer foto’s toe.';return}
  const state={cancelled:false,worker:null};activeScan=state;
  const btn=$('recognize-button'),stop=$('stop-recognition');btn.disabled=true;stop.hidden=false;
- scanCandidates=[];$('scan-results').replaceChildren();timings.textContent='';
+ scanCandidates=[];$('scan-results').replaceChildren();timings.textContent='';rawOcr.textContent='';
  const overall=performance.now();const names=new Set();
  const limit=$('scan-one-only').checked?1:photos.length;
  try{
@@ -228,7 +231,10 @@ $('recognize-button').onclick=async()=>{
     recognition.catch(()=>{});
     const result=await Promise.race([recognition,new Promise((_,reject)=>setTimeout(()=>reject(new Error('Tekstherkenning duurde langer dan 60 seconden bij '+region.label)),60000))]);
     addTiming(`Foto ${i+1}, ${region.label}: ${elapsed(t)}`);
-    for(const name of findScanMatches(result.data.text))names.add(name);
+    addOcrText(`Foto ${i+1} / ${region.label}`,result.data.text||'');
+    const matches=findScanMatches(result.data.text||'');
+    addTiming(`Foto ${i+1}, ${region.label}: ${matches.length} passende kaartnamen`);
+    for(const name of matches)names.add(name);
     // Keep the UI responsive and show progressive findings.
     await new Promise(resolve=>setTimeout(resolve,0));
    }
