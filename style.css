@@ -4,4 +4,28 @@
 
 .diag-choice{display:block;margin:12px 0;font-weight:600}.diagnostics{margin:16px 0;padding:14px;background:#e4eadc;border-radius:10px}.diagnostics pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.6 ui-monospace,monospace;color:#31583a}#stop-recognition{width:100%;margin:4px 0}
 
-#group-image-wrap{margin:12px 0;background:#eee;border-radius:10px;overflow:hidden}#group-image{display:block;width:100%;height:auto;touch-action:none;cursor:crosshair}#group-controls{display:flex;flex-wrap:wrap;gap:8px}#group-controls button{flex:1;min-width:125px;font-size:14px}#group-editor[hidden]{display:none}
+/* 4.2: botanical card-inspired appearance; scanner logic is unchanged. */
+:root{--forest:#2d4935;--moss:#627657;--sage:#d9dfc9;--parchment:#f6f0df;--ink:#344938;--gold:#a68a56}
+body{background:radial-gradient(ellipse at 12% 4%,#e5eadc 0,transparent 40%),radial-gradient(ellipse at 88% 85%,#e5e3d0 0,transparent 38%),#f6f1e5;color:var(--ink);font-family:Georgia,'Times New Roman',serif;min-height:100vh}
+header{position:relative;overflow:hidden;background:linear-gradient(165deg,#2d4935,#4a6748 70%,#607757);color:#f7efd9;border-bottom:5px double #b5a16f;padding:30px 16px 26px;box-shadow:0 7px 20px #273d2b22}
+header:before,header:after{content:'❧';position:absolute;font-size:130px;opacity:.12;top:-40px;transform:rotate(-22deg)}header:before{left:-12px}header:after{right:-12px;transform:rotate(22deg)}
+header h1{font-size:clamp(34px,7vw,55px);letter-spacing:.025em;line-height:1.1;text-shadow:0 2px 5px #152b1c55}
+header p{color:#e4e7d4;font-size:17px}.header-leaves{font-size:22px;color:#e4d4a2;letter-spacing:5px}.eyebrow{letter-spacing:.22em;font-size:10px!important;font-family:system-ui,sans-serif;font-weight:700}.version-label{display:inline-block;margin-top:12px;color:#e1d7b7;font:11px system-ui,sans-serif;letter-spacing:.08em}
+main{max-width:850px;padding:22px 15px 60px}section:not([hidden]){animation:fade-in .22s ease-out}@keyframes fade-in{from{opacity:.65;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+h2{color:#344f37;font-size:26px}.section-heading{text-align:center;margin:32px 0 15px;font-size:23px}
+.score{background:linear-gradient(135deg,#f8f3e5,#e6e9d7);border:2px solid #9eac8d;border-radius:15px;box-shadow:inset 0 0 0 4px #f9f5e8,0 5px 16px #344c3520;padding:22px 14px}
+.score strong{color:#2f5638;font-family:Georgia,serif}.score>div{font-size:15px}
+button,.upload,select{font-family:Georgia,'Times New Roman',serif;border:1px solid #b6b99f;border-radius:9px;background:#fffaf0;color:#344e37;box-shadow:0 2px 0 #8d947b22;transition:background .15s,transform .15s}
+button:active,.upload:active{transform:translateY(1px)}button:hover,.upload:hover{background:#e9eedf}
+.primary{background:linear-gradient(#496b4c,#2f5038);border-color:#294633;color:#fff8e6;box-shadow:0 3px 0 #233a2a}.primary:hover{background:#537b56}
+.danger{background:#faf2e9;color:#875b49;border-color:#d0b8a6}
+.categories button{background:linear-gradient(150deg,#fffbf1,#e9ecde);border:1px solid #aeb99f;border-bottom:3px solid #9aa78c;min-height:80px;position:relative}
+.categories button:before{content:'❧';display:block;font-size:18px;color:#82987b;line-height:1.1}
+.card-row{background:#fffcf3;border:1px solid #cbd1bb;border-left:4px solid #7c9775;box-shadow:0 2px 7px #30432e0b}.extra-row{background:#edf0e4}
+.cave-button{background:#e4e9d7;border:1px solid #a9b99f}
+.hint{color:#647362}.home-hint{text-align:center;margin:16px 0 20px}.intro{background:#f9f6ea;border-left:4px solid #78936d;padding:12px 15px;border-radius:4px;line-height:1.6}
+.gallery .photo{background:#fffaf0;border:2px solid #b9c4ac;box-shadow:0 4px 14px #30432e17}
+#scan-results{padding-top:5px}#scan-status{background:#e9eddf;border-radius:9px;padding:12px 14px}
+.upload{padding:14px 18px}.back{background:#f5f0e1}#recognize-button{padding:15px;font-size:18px}
+@media(max-width:600px){header{padding:26px 12px 22px}.score{padding:16px 10px}.score strong{font-size:38px}.categories{gap:9px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
