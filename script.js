@@ -156,6 +156,12 @@ async function addSelectedPhotos(input,source){
  if(added){scanCandidates=[];$('scan-results').replaceChildren();renderPhotos()}
  $('scan-status').textContent=added?`${added} foto('s) toegevoegd via ${source}. Totaal: ${photos.length}. Maak nog een foto of tik op Herken mijn kaarten.`:'De foto kon niet worden gelezen. Probeer opnieuw of kies een foto uit je galerij.';
 }
+// Open de camera direct vanuit een echte gebruikersklik (vereist op Android).
+$('take-photo-button').addEventListener('click',()=>{
+ const input=$('camera-input');
+ input.value='';
+ input.click();
+});
 $('camera-input').addEventListener('change',e=>{addSelectedPhotos(e.currentTarget,'camera').catch(console.error)});
 $('scan-input').addEventListener('change',e=>{addSelectedPhotos(e.currentTarget,'galerij').catch(console.error)});
 $('clear-photos').onclick=()=>{for(const p of photos)URL.revokeObjectURL(p.url);photos.length=0;scanCandidates=[];$('scan-results').replaceChildren();$('scan-status').textContent='Foto’s gewist.';renderPhotos()};
