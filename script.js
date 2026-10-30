@@ -258,16 +258,16 @@ function diagnoseSavi(text, photoIndex, regionLabel, matches){
  saviDiagnostics.textContent+=(saviDiagnostics.textContent?'\n\n':'')+lines.join('\n');
 }
 $('copy-savi-diagnostics').onclick=async()=>{
- try{await navigator.clipboard.writeText('Forest Shuffle 3.9 — Savi-diagnose\n'+saviDiagnostics.textContent);$('scan-status').textContent='Savi-diagnose gekopieerd! Plak hem hier in de chat.'}
+ try{await navigator.clipboard.writeText('Forest Shuffle 4.0 — Savi-diagnose\n'+saviDiagnostics.textContent);$('scan-status').textContent='Savi-diagnose gekopieerd! Plak hem hier in de chat.'}
  catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van de Savi-diagnose.'}
 };
 
 function addOcrText(label, text){rawOcr.textContent+=(rawOcr.textContent?'\n\n':'')+'--- '+label+' ---\n'+(text.trim()||'[geen leesbare tekst]');}
-$('copy-ocr-text').onclick=async()=>{try{await navigator.clipboard.writeText('Forest Shuffle 3.9 OCR-tekst\n'+rawOcr.textContent);$('scan-status').textContent='Gelezen tekst gekopieerd! Plak hem hier in de chat.'}catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van het vak met gelezen tekst.'}};
+$('copy-ocr-text').onclick=async()=>{try{await navigator.clipboard.writeText('Forest Shuffle 4.0 OCR-tekst\n'+rawOcr.textContent);$('scan-status').textContent='Gelezen tekst gekopieerd! Plak hem hier in de chat.'}catch(_){$('scan-status').textContent='Kopiëren lukt niet. Maak een screenshot van het vak met gelezen tekst.'}};
 function addTiming(line){timings.textContent+=(timings.textContent?'\n':'')+line}
 function elapsed(t){return ((performance.now()-t)/1000).toFixed(1)+' s'}
 $('copy-diagnostics').onclick=async()=>{
- const report='Forest Shuffle 3.9 | '+navigator.userAgent+'\n'+timings.textContent;
+ const report='Forest Shuffle 4.0 | '+navigator.userAgent+'\n'+timings.textContent;
  try{await navigator.clipboard.writeText(report);$('scan-status').textContent='Meetresultaten gekopieerd! Plak ze in de chat.'}
  catch(_){$('scan-status').textContent='Kopiëren niet toegestaan. Maak een screenshot van de snelheidsmeting.'}
 };
@@ -296,7 +296,10 @@ $('recognize-button').onclick=async()=>{
    const canvas=await resizedPhoto(photos[i].url);
    addTiming(`Foto ${i+1}: voorbereiden ${elapsed(t)} (${canvas.width}×${canvas.height} px)`);
    if(state.cancelled)break;
-   const regions=scanRegions(canvas);
+   const allRegions=scanRegions(canvas);
+   const fastMode=$('scan-fast-mode').checked;
+   const regions=fastMode?allRegions.filter(region=>region.label!=='hele foto'):allRegions;
+   addTiming(`Foto ${i+1}: modus ${fastMode?'SNEL (3 uitsneden)':'VOLLEDIG (4 scans)'}`);
    for(let j=0;j<regions.length;j++){
     if(state.cancelled)break;
     const region=regions[j];
