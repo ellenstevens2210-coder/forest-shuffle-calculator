@@ -32,3 +32,10 @@ button:active,.upload:active{transform:translateY(1px)}button:hover,.upload:hove
 
 /* Versie 4.3: camera rechtstreeks openen vanuit de app */
 .photo-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0}.photo-actions .upload{display:flex;align-items:center;justify-content:center;text-align:center;min-height:58px;padding:12px;border-radius:12px;cursor:pointer;font-weight:700}.gallery-upload{background:#e8e5d6;color:#2c5139;border:1px solid #a6b49a}.diagnostic-details{margin:18px 0;border:1px solid #bcc8b1;border-radius:12px;padding:12px}.diagnostic-details summary{cursor:pointer;font-weight:600}.photo-actions .primary{color:#fff}@media(max-width:420px){.photo-actions{grid-template-columns:1fr}}
+
+/* 4.3.2: banner naar voorbeeld van de gebruiker */
+header.forest-header{padding:0 0 13px;background:#203c2b;border-bottom:4px solid #a1a875;box-shadow:0 5px 17px #253b2833;display:flex;flex-direction:column;align-items:center}
+header.forest-header:before,header.forest-header:after{content:none}
+.forest-banner{display:block;width:100%;max-width:440px;height:auto;max-height:290px;object-fit:cover;object-position:center 40%;background:#254d31}
+header.forest-header .version-label{margin-top:9px;color:#f4ead4;font:12px system-ui,sans-serif;letter-spacing:.07em}
+.photo-actions button.upload{width:100%;appearance:none;-webkit-appearance:none;font-weight:700}
