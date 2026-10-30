@@ -167,26 +167,51 @@ async function resizedPhoto(url){
 }
 function renderScanResults(){const root=$('scan-results');root.replaceChildren();if(!scanCandidates.length){const p=document.createElement('p');p.textContent='Geen betrouwbare kaartnamen gevonden. Probeer een scherpere foto van dichtbij, of voer kaarten handmatig in via de categorieën.';root.append(p);return}const h=document.createElement('h3');h.textContent='Controleer de herkende kaarten';root.append(h);const info=document.createElement('p');info.className='hint';info.textContent='Dit zijn suggesties uit alle foto’s samen. Dubbelen zijn niet automatisch te onderscheiden. Pas aantallen aan en voeg alleen de juiste kaarten toe.';root.append(info);for(const c of scanCandidates){const wrap=document.createElement('div');wrap.className='card-row';const label=document.createElement('label');const check=document.createElement('input');check.type='checkbox';check.checked=c.selected;check.onchange=()=>c.selected=check.checked;label.append(check,document.createTextNode(' '+c.name));const quantity=document.createElement('input');quantity.type='number';quantity.min='1';quantity.max='99';quantity.value=c.count;quantity.className='scan-quantity';quantity.setAttribute('aria-label','Aantal '+c.name);quantity.onchange=()=>c.count=Math.max(1,Math.min(99,Number.parseInt(quantity.value,10)||1));wrap.append(label,quantity);root.append(wrap)}const add=document.createElement('button');add.className='primary';add.textContent='✅ Geselecteerde kaarten toevoegen aan mijn bos';add.onclick=()=>{const chosen=scanCandidates.filter(c=>c.selected);if(!chosen.length){$('scan-status').textContent='Vink eerst minstens één kaart aan.';return}for(const c of chosen){const card=uniekeKaarten.find(x=>x.naam===c.name);if(!card)continue;const next=Math.min(card.max??Infinity,aantallen[c.name]+c.count);aantallen[c.name]=next;if(kaartTellers[c.name]){while(kaartTellers[c.name].length<next)kaartTellers[c.name].push(0)}}refresh();scanCandidates=[];root.replaceChildren();$('scan-status').textContent=chosen.length+' kaartsoort(en) toegevoegd. Controleer voor de eindscore ook de extra vragen bij kaarten en boomcombinaties.';show('home')};root.append(add)}
 function loadOcr(){return new Promise((resolve,reject)=>{if(window.Tesseract){resolve(window.Tesseract);return}const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';script.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(new Error('OCR-module ontbreekt'));script.onerror=()=>reject(new Error('OCR-module kon niet worden geladen. Controleer je internetverbinding.'));document.head.append(script)})}
+// Versie 3.2: meet de fasen afzonderlijk; stop een langdurige OCR-test na een limiet.
+let activeScan=null;
+const timings=$('scan-timings');
+function addTiming(line){timings.textContent+=(timings.textContent?'\n':'')+line}
+function elapsed(t){return ((performance.now()-t)/1000).toFixed(1)+' s'}
+$('copy-diagnostics').onclick=async()=>{
+ const report='Forest Shuffle 3.2 | '+navigator.userAgent+'\n'+timings.textContent;
+ try{await navigator.clipboard.writeText(report);$('scan-status').textContent='Meetresultaten gekopieerd! Plak ze in de chat.'}
+ catch(_){$('scan-status').textContent='Kopiëren niet toegestaan. Maak een screenshot van de snelheidsmeting.'}
+};
+$('stop-recognition').onclick=()=>{if(activeScan){activeScan.cancelled=true;$('scan-status').textContent='Scan stoppen…';if(activeScan.worker)activeScan.worker.terminate().catch(()=>{})}};
 $('recognize-button').onclick=async()=>{
  if(!photos.length){$('scan-status').textContent='Voeg eerst één of meer foto’s toe.';return}
- const btn=$('recognize-button');btn.disabled=true;scanCandidates=[];$('scan-results').replaceChildren();let worker;
+ const state={cancelled:false,worker:null};activeScan=state;
+ const btn=$('recognize-button'),stop=$('stop-recognition');btn.disabled=true;stop.hidden=false;
+ scanCandidates=[];$('scan-results').replaceChildren();timings.textContent='';
+ const overall=performance.now();const names=new Set();
+ const limit=$('scan-one-only').checked?1:photos.length;
  try{
-  $('scan-status').textContent='Herkenningsmodule laden… (internet nodig)';
-  const ocr=await loadOcr();
-  // Dutch only: smaller language load and faster than nld+eng.
-  worker=await ocr.createWorker('nld');
-  const names=new Set();
-  for(let i=0;i<photos.length;i++){
-   $('scan-status').textContent=`Foto ${i+1} van ${photos.length}: verkleinen en lezen…`;
+  let t=performance.now();$('scan-status').textContent='OCR-bibliotheek laden…';
+  const ocr=await loadOcr();addTiming('Bibliotheek laden: '+elapsed(t));
+  if(state.cancelled)return;
+  t=performance.now();$('scan-status').textContent='OCR-taalmodel en worker laden…';
+  // Een limiet voorkomt dat de diagnose minutenlang onduidelijk blijft hangen.
+  const workerPromise=ocr.createWorker('nld');
+  workerPromise.then(w=>{if(state.cancelled)w.terminate().catch(()=>{})}).catch(()=>{});
+  const init=await Promise.race([workerPromise,new Promise((_,reject)=>setTimeout(()=>reject(new Error('Worker laden duurde langer dan 60 seconden')),60000))]);
+  state.worker=init;addTiming('Taalmodel + worker starten: '+elapsed(t));
+  if(state.cancelled)return;
+  for(let i=0;i<limit;i++){
+   if(state.cancelled)break;
+   t=performance.now();$('scan-status').textContent=`Foto ${i+1} van ${limit}: voorbereiden…`;
    const canvas=await resizedPhoto(photos[i].url);
-   const result=await worker.recognize(canvas);
+   addTiming(`Foto ${i+1}: voorbereiden ${elapsed(t)} (${canvas.width}×${canvas.height} px)`);
+   if(state.cancelled)break;
+   t=performance.now();$('scan-status').textContent=`Foto ${i+1} van ${limit}: tekst lezen (maximaal 60 seconden)…`;
+   const recognition=state.worker.recognize(canvas);
+   recognition.catch(()=>{});
+   const result=await Promise.race([recognition,new Promise((_,reject)=>setTimeout(()=>reject(new Error('Tekstherkenning duurde langer dan 60 seconden bij foto '+(i+1))),60000))]);
+   addTiming(`Foto ${i+1}: tekstherkenning ${elapsed(t)}`);
+   if(state.cancelled)break;
    for(const name of findScanMatches(result.data.text))names.add(name);
-   $('scan-status').textContent=`Foto ${i+1} van ${photos.length} klaar. Tot nu toe ${names.size} kaartsoort(en).`;
-   await new Promise(resolve=>setTimeout(resolve,50));
+   addTiming(`Foto ${i+1}: ${names.size} kaartsoort(en) gevonden (totaal)`);
   }
-  scanCandidates=[...names].sort((a,b)=>a.localeCompare(b,'nl')).map(name=>({name,count:1,selected:true}));
-  $('scan-status').textContent=scanCandidates.length+' mogelijke kaartsoort(en) gevonden. Controleer alles zorgvuldig.';
-  renderScanResults();
- }catch(err){$('scan-status').textContent='Herkenning lukte niet: '+err.message+' Je kunt de kaarttellers nog steeds handmatig gebruiken.'}
- finally{if(worker)await worker.terminate().catch(()=>{});btn.disabled=false}
+  if(!state.cancelled){scanCandidates=[...names].sort((a,b)=>a.localeCompare(b,'nl')).map(name=>({name,count:1,selected:true}));renderScanResults();$('scan-status').textContent=scanCandidates.length+' mogelijke kaartsoort(en) gevonden. Controleer alles zorgvuldig.'}
+ }catch(err){addTiming('Melding: '+err.message);$('scan-status').textContent='Scan gestopt: '+err.message+'. Je kunt je kaarttellers nog steeds gebruiken.'}
+ finally{addTiming('Totale testduur: '+elapsed(overall));if(state.worker)await state.worker.terminate().catch(()=>{});if(activeScan===state)activeScan=null;btn.disabled=false;stop.hidden=true}
 };
